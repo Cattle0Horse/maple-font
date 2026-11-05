@@ -1,0 +1,131 @@
+name: Fork Sync and Custom Build
+
+on:
+  schedule:
+    - cron: '23 0 * * *'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: Rebuild even if this source revision already has a custom release
+        type: boolean
+        default: false
+  push:
+    branches: [variable]
+    paths:
+      - config.overrides.json
+      - scripts/fork_build.py
+      - .github/workflows/fork-build.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-sync-and-build
+  cancel-in-progress: false
+
+jobs:
+  sync-and-build:
+    if: github.repository == 'Cattle0Horse/maple-font' && github.ref == 'refs/heads/variable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: variable
+          fetch-depth: 0
+          token: ${{ secrets.FORK_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Merge upstream and persist synchronization
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python -m scripts.fork_build sync
+
+      - name: Prepare configuration and check for a successful build
+        id: prepare
+        env:
+          FORCE_BUILD: ${{ inputs.force_build || false }}
+        run: |
+          args=()
+          if [[ "$FORCE_BUILD" == 'true' ]]; then
+            args+=(--force)
+          fi
+          python -m scripts.fork_build prepare "${args[@]}"
+
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        if: steps.prepare.outputs.needs_build == 'true'
+        with:
+          enable-cache: true
+          python-version: '3.12'
+
+      - name: Install locked dependencies
+        if: steps.prepare.outputs.needs_build == 'true'
+        run: uv sync --locked --no-dev
+
+      - name: Validate effective configuration
+        if: steps.prepare.outputs.needs_build == 'true'
+        id: config
+        run: |
+          uv run --no-dev build.py --archive --dry > "$RUNNER_TEMP/resolved-config.json"
+          uv run --no-dev python - <<'PY' >> "$GITHUB_OUTPUT"
+          from scripts.config.resolver import BuildConfigResolver
+          config = BuildConfigResolver().resolve_project_config()
+          needed = config.nerd_font.enable and config.nerd_font.uses_font_patcher()
+          print(f"font_patcher={str(needed).lower()}")
+          PY
+
+      - name: Install FontForge when required by the configuration
+        if: steps.config.outputs.font_patcher == 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y fontforge python3-fontforge
+
+      - name: Build custom fonts
+        if: steps.prepare.outputs.needs_build == 'true'
+        run: uv run --no-dev build.py --archive
+
+      - name: Preserve build diagnostics
+        if: always() && steps.prepare.outputs.needs_build == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: custom-build-${{ steps.prepare.outputs.source_sha }}
+          path: |
+            config.json
+            fork-build.json
+            fonts/build-config.json
+            fonts/issue.fea
+            ${{ runner.temp }}/resolved-config.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish custom font archives
+        if: success() && steps.prepare.outputs.needs_build == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
+          SOURCE_SHA: ${{ steps.prepare.outputs.source_sha }}
+        run: |
+          shopt -s nullglob
+          archives=(fonts/archive/*.zip)
+          if (( ${#archives[@]} == 0 )); then
+            echo 'No font archives were produced.' >&2
+            exit 1
+          fi
+          cat > "$RUNNER_TEMP/custom-release-notes.md" <<EOF
+          Custom fonts built from [$SOURCE_SHA](https://github.com/$GITHUB_REPOSITORY/commit/$SOURCE_SHA).
+
+          The attached config.json contains upstream defaults plus config.overrides.json.
+          build-config.json records the resolved build configuration; fork-build.json records the source revisions.
+
+          Build command: uv run --no-dev build.py --archive
+          EOF
+          if ! gh release view "$RELEASE_TAG" --json isDraft > /dev/null; then
+            gh release create "$RELEASE_TAG" --target "$SOURCE_SHA" --draft --prerelease \
+              --title "Custom fonts (${SOURCE_SHA:0:12})" \
+              --notes-file "$RUNNER_TEMP/custom-release-notes.md"
+          fi
+          gh release upload "$RELEASE_TAG" "${archives[@]}" \
+            config.json fork-build.json fonts/build-config.json --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false \
+            --notes-file "$RUNNER_TEMP/custom-release-notes.md"

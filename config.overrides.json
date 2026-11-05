@@ -1,0 +1,20 @@
+{
+  "feature_freeze": {
+    "cv01": "enable",
+    "cv03": "enable",
+    "cv35": "enable",
+    "ss01": "enable",
+    "ss06": "enable"
+  },
+  "nerd_font": {
+    "enable": true,
+    "mono": false,
+    "propo": false
+  },
+  "cjk": {
+    "locales": {
+      "cn": true
+    },
+    "with_nerd_font": true
+  }
+}
