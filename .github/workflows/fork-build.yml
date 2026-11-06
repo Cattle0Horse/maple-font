@@ -121,11 +121,11 @@ jobs:
           Build command: uv run --no-dev build.py --archive
           EOF
           if ! gh release view "$RELEASE_TAG" --json isDraft > /dev/null; then
-            gh release create "$RELEASE_TAG" --target "$SOURCE_SHA" --draft --prerelease \
+            gh release create "$RELEASE_TAG" --target "$SOURCE_SHA" --draft \
               --title "Custom fonts (${SOURCE_SHA:0:12})" \
               --notes-file "$RUNNER_TEMP/custom-release-notes.md"
           fi
           gh release upload "$RELEASE_TAG" "${archives[@]}" \
             config.json fork-build.json fonts/build-config.json --clobber
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false \
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest \
             --notes-file "$RUNNER_TEMP/custom-release-notes.md"

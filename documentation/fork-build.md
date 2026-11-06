@@ -57,11 +57,17 @@ Environment secrets are available to jobs that reference their environment; this
 2. Create the `FORK_SYNC_TOKEN` repository secret using the [instructions above](#create-the-synchronization-secret).
 3. Open **Actions → Fork Sync and Custom Build**. Enable Actions for the fork if GitHub asks.
 4. Run the workflow manually for an initial build, or let the configuration push trigger it.
-5. Download your font ZIP files from **Releases**, under **Custom fonts**. Custom releases are marked as prereleases and use `custom-<commit>` tags, separate from upstream `v*` tags.
+5. Download your font ZIP files from **Releases**, under **Custom fonts**. Custom builds are published as regular releases and marked **Latest**. They use `custom-<commit>` tags, separate from upstream `v*` tags.
 
 Changing `config.overrides.json` also starts a build after you push it to `variable`. The schedule runs once a day at 00:23 UTC (08:23 in China). GitHub may delay scheduled runs; public repositories can have schedules disabled after 60 days without activity. See [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 The workflow requests `contents: write` through the built-in `GITHUB_TOKEN` for release publication. `FORK_SYNC_TOKEN`, when present, is used by checkout for Git synchronization. Repository or organization restrictions can still prevent a push or release. Resolve any permission failure shown in the Actions log before retrying.
+
+## Scoop updates
+
+The [Maple-Mono-NF-CN manifest](https://github.com/Cattle0Horse/apps/blob/main/bucket/Maple-Mono-NF-CN.json) tracks regular published `custom-<commit>` releases. Its numeric package version comes from the release publication timestamp; the full Git tag selects the download URL. It reads SHA-256 from the matching GitHub release asset's `digest`, because custom releases do not upload separate `.sha256` files.
+
+When adapting another Scoop manifest, update its version detection, download tag template, and hash source together. The old `v$version` download template does not match the new custom release tags.
 
 ## Build records and recovery
 
