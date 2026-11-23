@@ -4,9 +4,10 @@ import argparse
 import json
 import tempfile
 import unittest
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 from scripts.cjk.cli import (
     add_cjk_arguments,
@@ -18,7 +19,7 @@ from scripts.cjk.config import (
     config_from_json,
     serialize_cjk_build_config,
 )
-from scripts.cjk.presets import build_preset_config, get_preset
+from scripts.cjk.presets import build_preset_config, cache_preset, get_preset
 
 
 def custom_config_data() -> dict[str, Any]:
@@ -36,6 +37,46 @@ def custom_config_data() -> dict[str, Any]:
 
 
 class CJKConfigSurfaceTest(unittest.TestCase):
+    def test_cache_key_tracks_locale_inputs_and_ignores_release_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            cn = project / get_preset("cn").config_path
+            kr = project / get_preset("kr").config_path
+            for asset in (
+                cn,
+                kr,
+                project / "requirements.txt",
+                project / ".github/workflows/cjk-base-build.yml",
+                project / "scripts/task/cjk.py",
+            ):
+                asset.parent.mkdir(parents=True, exist_ok=True)
+                asset.write_text("original input\n", encoding="utf-8")
+            feature_font = project / "base.ttf"
+            feature_font.write_bytes(b"shared base")
+            cn_config = replace(
+                build_preset_config("cn"), feature_font_path=feature_font
+            )
+            kr_config = replace(
+                build_preset_config("kr"), feature_font_path=feature_font
+            )
+
+            with patch("scripts.cjk.presets.PROJECT_ROOT", project):
+                cn_before = cache_preset("cn", cn_config)
+                kr_before = cache_preset("kr", kr_config)
+                (project / "config.json").write_text(
+                    '{"font_version":"8.005"}', encoding="utf-8"
+                )
+                self.assertEqual(cache_preset("cn", cn_config), cn_before)
+                cn.write_text("changed preset\n", encoding="utf-8")
+                self.assertNotEqual(
+                    cache_preset("cn", cn_config).output, cn_before.output
+                )
+                self.assertEqual(cache_preset("kr", kr_config), kr_before)
+                feature_font.write_bytes(b"changed shared base")
+                self.assertNotEqual(
+                    cache_preset("kr", kr_config).output, kr_before.output
+                )
+
     def test_freeze_feature_round_trips(self) -> None:
         data = custom_config_data()
         data["freeze_feature"] = "cv99"

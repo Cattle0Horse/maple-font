@@ -70,16 +70,15 @@ The four source URLs are maintained manually. Update the `source.download.url` v
 | JP     | `sources/cjk/jp/config-jp.json` |
 | KR     | `sources/cjk/kr/config-kr.json` |
 
-Keep the URL pinned to the intended upstream release or ref. The committed static and variable hashes are the source of truth for the generated archive contents; CI does not look up a latest release or store a separate manifest.
+Keep the source URL pinned to the intended upstream release or ref. Each built-in locale uses a cache key derived from its preset, shared feature font, generator, and locked runtime dependency list. Base font naming uses a separate version from the final release fonts.
 
 ### Published update (recommended)
 
-1. Update the `source.download.url` value in the relevant preset and run `uv run task.py cjk --preset <locale>` locally. Review the generated fonts, then commit the config and matching `sources/cjk/<locale>/static-<locale>.sha256` and `variable-<locale>.sha256` files together.
-2. Pushing one or more static or variable hash files triggers **Update CJK Base Fonts**. The workflow rebuilds the selected locales and validates both ZIPs, including root-level members, variable `fvar` tables, ZIP integrity, and the corresponding committed hash.
-3. For a rebuild without a hash change, run the workflow manually and choose `all`, `cn`, `tc`, `jp`, or `kr`. Use `all` when bootstrapping a missing release or repairing an incomplete release; the workflow refuses to leave the release with fewer than eight locale/kind assets.
-4. The workflow deletes and replaces both static and variable archives for only the changed locales. After upload it downloads the published ZIPs again and repeats the eight-asset validation.
+1. Update the relevant preset or shared inputs. For a local check, run `uv run --locked --no-dev task.py cjk --preset <locale>` and review the generated fonts.
+2. Push the input changes to `variable`. **Update CJK Base Fonts** builds locales whose cache keys lack a published release. It validates the ZIP structure, variable `fvar` tables, and generated content digests.
+3. The workflow publishes each locale's two ZIPs and two digest files under `cjk-base-<locale>-<key>`. To populate a missing cache manually, dispatch the workflow for the desired locale or select `all`.
 
-The main release workflow downloads all eight `cjk-base` ZIPs and validates them against the committed hashes before building the normal release. A stale, missing, or corrupt CJK archive blocks the normal release; ordinary `build.py` and `task.py publish build` runs use local CJK directories and ZIPs first, then remote archives or source rebuilds.
+Both local and release builds can reuse the verified cache for their checkout's key. A missing or invalid archive falls back to building from the pinned source.
 
 ### Local check or rebuild
 
@@ -87,16 +86,16 @@ Use the standalone task for a focused local build or when debugging a preset:
 
 ```sh
 uv run task.py cjk --help
-uv run task.py cjk --preset cn
+uv run --locked --no-dev task.py cjk --preset cn
 ```
 
-The task rebuilds the regular and italic variable bases, writes their standalone variable ZIP/hash, and writes the static instances unless `--vf-only` is selected. Generated CJK fonts, temporary source files, and ZIPs under `sources/cjk/` are disposable; the tracked `static-<locale>.sha256` and `variable-<locale>.sha256` files are updated by the local task and committed with the matching config, so do not hand-edit either digest. Avoid a full CJK build unless the source URL, outline conversion, or generated base artifacts are part of the requested change.
+The task rebuilds the regular and italic variable bases, then writes the static instances unless `--vf-only` is selected. Unmodified presets write their ZIPs, fonts, and digests at `sources/cjk/<locale>/.cache/<key>/`. Use `uv run task.py cjk cache-key <locale>` to print the key. These outputs are generated and ignored by Git.
 
 ## Create a Maple Mono release
 
 ### Prepare and tag locally
 
-1. Finish source, feature, and CJK updates, then run the validation baseline below. Make sure the `cjk-base` release is current and its 8 hashes match the repository.
+1. Finish source, feature, and CJK updates, then run the validation baseline below. Check the CJK base workflow if the release includes changes to CJK inputs.
 2. Preview the next version without changing files. The release task uses the development-only `questionary` menu with arrow-key navigation; each option includes its target tag and embedded font version, and `minor` is selected by default:
 
    ```sh

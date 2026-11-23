@@ -11,7 +11,7 @@ from scripts.cjk.assets import (
 from scripts.cjk.builder import build_cjk_fonts, instantiate_cjk_static_from_variable
 from scripts.cjk.cache import (
     has_valid_cjk_static_cache,
-    variable_paths,
+    has_valid_cjk_variable_cache,
     write_static_hash,
 )
 from scripts.utils.errors import CJKBaseUnavailable
@@ -136,7 +136,7 @@ class CJKBaseResolver:
             return None, [
                 "local variable outputs unavailable or clean_cache is enabled"
             ]
-        if all(path.is_file() for path in variable_paths(config)):
+        if has_valid_cjk_variable_cache(config):
             try:
                 self._instantiate_static_from_variable(config, required_styles)
                 return self._resolution(config, "local-variable"), failures

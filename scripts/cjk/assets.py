@@ -12,7 +12,7 @@ from scripts.cjk.cache import (
     verify_static_archive,
     verify_variable_archive,
 )
-from scripts.utils.downloads import download_zip_and_extract
+from scripts.utils.downloads import download_file, download_zip_and_extract
 from scripts.utils.logging import logger
 
 if TYPE_CHECKING:
@@ -51,11 +51,31 @@ class CJKBaseArchiveStore:
         return f"{locale}-base-{kind}.zip"
 
     @classmethod
-    def _download_url(cls, locale: BuiltinCJKLocaleId, kind: str) -> str:
+    def _download_url(
+        cls, locale: BuiltinCJKLocaleId, kind: str, cache_key: str | None
+    ) -> str:
+        if cache_key:
+            return (
+                "https://github.com/Cattle0Horse/maple-font/releases/download/"
+                f"cjk-base-{locale}-{cache_key}/{cls._archive_name(locale, kind)}"
+            )
         return (
             "https://github.com/subframe7536/maple-font/"
             + f"releases/download/cjk-base/{cls._archive_name(locale, kind)}"
         )
+
+    def _download_hash(
+        self, url: str, expected_hash: Path, temporary_dir: Path, cache_key: str | None
+    ) -> Path:
+        if cache_key is None:
+            return expected_hash
+        sidecar = temporary_dir / expected_hash.name
+        download_file(
+            f"{url.rsplit('/', 1)[0]}/{sidecar.name}",
+            sidecar,
+            self.github_mirror,
+        )
+        return sidecar
 
     def _install_static_archive(
         self,
@@ -167,15 +187,22 @@ class CJKBaseArchiveStore:
             with tempfile.TemporaryDirectory(
                 prefix=f".{output_dir.name}-remote-static-", dir=output_dir.parent
             ) as temporary_dir:
-                archive = Path(temporary_dir) / archive_name
+                temporary = Path(temporary_dir)
+                archive = temporary / archive_name
+                url = self._download_url(locale, "static", config.cache_key)
+                sidecar = self._download_hash(
+                    url, expected_hash, temporary, config.cache_key
+                )
                 if not self._install_static_archive(
                     archive,
-                    expected_hash,
+                    sidecar,
                     output_dir,
                     f"{config.locale_name} static CJK base font",
-                    self._download_url(locale, "static"),
+                    url,
                 ):
                     return False
+                if config.cache_key:
+                    sidecar.replace(expected_hash)
             logger.info(
                 "Downloaded CJK static base archive: locale=%s", config.locale_name
             )
@@ -195,12 +222,11 @@ class CJKBaseArchiveStore:
         if locale is None or locale not in CJK_BASE_DOWNLOAD_LOCALES:
             return False
         expected_hash = variable_hash_path(config)
-        if not expected_hash.is_file():
+        if config.cache_key is None and not expected_hash.is_file():
             return False
         output_dir = config.output.dir
         output_dir.mkdir(parents=True, exist_ok=True)
         archive_name = self._archive_name(locale, "variable")
-        archive = output_dir / f".{archive_name}.download.zip"
         expected_paths = variable_paths(config)
 
         try:
@@ -233,15 +259,25 @@ class CJKBaseArchiveStore:
             )
 
         try:
-            if not self._install_variable_archive(
-                archive,
-                expected_hash,
-                expected_paths,
-                output_dir,
-                config.locale_name,
-                self._download_url(locale, "variable"),
-            ):
-                return False
+            with tempfile.TemporaryDirectory(
+                prefix=".remote-variable-", dir=output_dir
+            ) as temporary_dir:
+                temporary = Path(temporary_dir)
+                url = self._download_url(locale, "variable", config.cache_key)
+                sidecar = self._download_hash(
+                    url, expected_hash, temporary, config.cache_key
+                )
+                if not self._install_variable_archive(
+                    temporary / archive_name,
+                    sidecar,
+                    expected_paths,
+                    output_dir,
+                    config.locale_name,
+                    url,
+                ):
+                    return False
+                if config.cache_key:
+                    sidecar.replace(expected_hash)
             logger.info("Downloaded CJK variable base: locale=%s", config.locale_name)
             return True
         except (OSError, ValueError) as error:
@@ -251,5 +287,3 @@ class CJKBaseArchiveStore:
                 error,
             )
             return False
-        finally:
-            archive.unlink(missing_ok=True)

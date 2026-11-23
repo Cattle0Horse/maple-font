@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from scripts.cjk.builder import build_cjk_fonts
+from scripts.cjk.cache import has_valid_cjk_variable_cache
 from scripts.cjk.instances import StaticFontCache, feature_weight_instances
 from scripts.cjk.resolver import CJKBaseResolver
 from scripts.cjk.static import (
@@ -100,10 +101,8 @@ def ensure_cjk_variable_fonts(
     regular_path = preset_config.output.dir / preset_config.output.regular_variable
     italic_path = preset_config.output.dir / preset_config.output.italic_variable
 
-    if (
-        not entry.common_options.clean_cache
-        and regular_path.is_file()
-        and italic_path.is_file()
+    if not entry.common_options.clean_cache and has_valid_cjk_variable_cache(
+        preset_config
     ):
         logger.info("Reuse cached CJK variable fonts: %s", entry.display_name)
         logger.debug(

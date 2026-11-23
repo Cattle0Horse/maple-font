@@ -425,6 +425,7 @@ class StageCacheTracker:
                     dependencies["nf"] = self.stage_cache_identity("nf")
                 inputs = {
                     "entry": serialize_cjk_build_config(entry.build_config),
+                    "cjk_base_key": entry.build_config.cache_key,
                     "common_options": entry.common_options.to_dict(),
                     "output_locale": output_locale,
                     "cjk_format": self.plan.cjk_mode,

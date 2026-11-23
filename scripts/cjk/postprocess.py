@@ -9,6 +9,7 @@ from scripts.cjk.variable import (
     update_italic_metadata,
     weight_axis,
 )
+from scripts.config.base import NerdFontBuildConfig
 from scripts.font_ops.fonttools import load_font
 from scripts.font_ops.names import set_font_name, update_font_names
 from scripts.utils.logging import logger
@@ -21,6 +22,16 @@ if TYPE_CHECKING:
     from scripts.font_ops.names import FontNameConfig
 
 RESERVED_NAME_IDS = {1, 2, 4, 6, 16, 17, 25}
+
+
+class _BaseFontNaming:
+    version_str = "Version 1.000"
+    beta = None
+    freeze_config_str = ""
+    nerd_font = NerdFontBuildConfig()
+
+
+BASE_FONT_NAMING = _BaseFontNaming()
 
 
 def remove_mac_name_records(font: TTFont) -> bool:
@@ -80,7 +91,7 @@ def update_variable_font_names(
 
     update_font_names(
         font=font,
-        font_config=font_config,
+        font_config=BASE_FONT_NAMING if config.cache_key else font_config,
         family_name=family_name,
         style_name=subfamily,
         full_name=full_name,
@@ -169,7 +180,7 @@ def finalize_static_font_instance(
     postscript_name = f"{config.naming.postscript_prefix}-{subfamily.replace(' ', '')}"
     update_font_names(
         font=instance,
-        font_config=font_config,
+        font_config=BASE_FONT_NAMING if config.cache_key else font_config,
         family_name=config.naming.family_name,
         style_name=subfamily,
         full_name=f"{config.naming.family_name} {subfamily}",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from sys import stdout
 from typing import cast
 
 from scripts.cjk.builder import build_cjk_fonts
@@ -13,7 +14,12 @@ from scripts.cjk.cli import (
 )
 from scripts.cjk.config import config_from_json
 from scripts.cjk.masters import apply_unicode_override
-from scripts.cjk.presets import CJKPresetId, build_preset_config, list_presets
+from scripts.cjk.presets import (
+    CJKPresetId,
+    build_preset_config,
+    cache_preset,
+    list_presets,
+)
 from scripts.config.resolver import resolve_default_build_config
 from scripts.utils.downloads import github_mirror_from_config
 
@@ -37,6 +43,10 @@ def parse_preset_ids(value: str) -> tuple[CJKPresetId, ...]:
 def register_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]):
     parser = subparsers.add_parser("cjk", help="Build preset or custom CJK base font")
     actions = parser.add_subparsers(dest="cjk_action")
+    key_parser = actions.add_parser(
+        "cache-key", help="Print the cache key for a preset"
+    )
+    key_parser.add_argument("locale", choices=list_presets())
     validate_parser = actions.add_parser(
         "cache-validate", help="Validate a CJK base archive against its hash"
     )
@@ -59,6 +69,11 @@ def register_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
 
 
 def run(args: argparse.Namespace) -> None:
+    if args.cjk_action == "cache-key":
+        locale = cast("CJKPresetId", args.locale)
+        config = cache_preset(locale, build_preset_config(locale))
+        stdout.write(f"{config.cache_key}\n")
+        return
     if args.cjk_action == "cache-validate":
         if args.kind == "variable":
             verify_variable_archive(args.archive, args.hash_file)
@@ -69,9 +84,11 @@ def run(args: argparse.Namespace) -> None:
     github_mirror = github_mirror_from_config()
     if args.preset:
         for preset_id in args.preset:
-            config = build_preset_config(preset_id)
-            config = apply_cli_overrides(config, args)
+            preset = build_preset_config(preset_id)
+            config = apply_cli_overrides(preset, args)
             config = apply_unicode_override(config, args.unicodes)
+            if config == preset:
+                config = cache_preset(preset_id, preset)
             build_cjk_fonts(
                 config,
                 resolve_default_build_config(),

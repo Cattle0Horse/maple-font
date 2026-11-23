@@ -36,6 +36,20 @@ def variable_paths(config: CJKBuildConfig) -> tuple[Path, Path]:
     )
 
 
+def has_valid_cjk_variable_cache(config: CJKBuildConfig) -> bool:
+    """Check both variable outputs and the digest for a fingerprinted cache."""
+    paths = variable_paths(config)
+    if not all(path.is_file() for path in paths):
+        return False
+    if config.cache_key is None:
+        return True
+    try:
+        expected = variable_hash_path(config).read_text(encoding="utf-8").strip()
+        return expected == hash_files({path.name: path for path in paths})
+    except (OSError, ValueError):
+        return False
+
+
 def write_static_hash(config: CJKBuildConfig, static_dir: Path) -> None:
     """Write one directory digest for the complete static CJK stage."""
     digest = hash_directory(static_dir)
@@ -92,7 +106,7 @@ def verify_static_archive(
     expected_hash_path: Path,
     extracted_dir: Path | None = None,
 ) -> None:
-    """Verify a static archive against a committed directory hash."""
+    """Verify a static archive against its directory hash."""
     expected_hash = expected_hash_path.read_text(encoding="utf-8").strip()
     if not HASH_PATTERN.fullmatch(expected_hash):
         raise ValueError(f"Invalid static hash: {expected_hash_path}")

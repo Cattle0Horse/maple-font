@@ -194,6 +194,7 @@ class CJKBuildConfig:
     unicode: CJKUnicodeConfig = field(default_factory=CJKUnicodeConfig)
     transform: CJKTransformConfig = field(default_factory=CJKTransformConfig)
     temp_dir: Path = Path("sources/cjk/temp")
+    cache_key: str | None = None
     hhea_metrics: dict[str, int] = field(
         default_factory=lambda: dict(DEFAULT_MAPLE_HHEA_METRICS)
     )

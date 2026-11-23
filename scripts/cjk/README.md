@@ -41,7 +41,7 @@ For a main-pipeline static merge, the actual resolution order is:
 3. **Remote static archive.** If the local static archive is unavailable or invalid and the locale has a supported release archive, download and validate it. An incomplete or invalid archive is preserved and resolution continues.
 4. **Local variable bases.** If both regular and italic variable files exist and `clean_cache` is false, instantiate the requested static styles locally and validate the resulting directory digest.
 5. **Valid local variable archive.** If the variable files are unavailable, validate and install the generated `<locale>-base-variable.zip` before considering any network source.
-6. **Remote variable archive.** If the local variable archive is unavailable or invalid and the locale has a matching `cjk-base` variable archive, download it, validate its two exact members, `fvar` tables, ZIP integrity, and committed variable hash, then instantiate the requested static styles.
+6. **Remote variable archive.** If the local variable archive is unavailable or invalid, download the matching locale release's ZIP and digest. Validate its exact members, `fvar` tables, ZIP integrity, and content digest, then instantiate the requested static styles.
 7. **Source rebuild.** If the remote variable archive is unavailable or invalid, resolve the configured sources/download and rebuild the regular and italic variable bases with `vf_only=True`, then instantiate and validate the static styles.
 
 An existing but invalid static directory is never silently removed, and a failed fallback raises `CJKBaseUnavailable` after the available sources have been tried. Variable-mode release output uses the same local-file, local-archive, validated remote-archive, or source-rebuild rule, without requiring a static directory.
@@ -88,18 +88,18 @@ flowchart LR
 
 ## Generated layout
 
-For `locale_name: "CN"`, the resolver derives these names; other locales follow the same rule:
+Unmodified built-in presets store generated outputs under `sources/cjk/<locale>/.cache/<key>/`. The key tracks build inputs. Use `uv run task.py cjk cache-key cn` to see the current key. Custom builds and CLI overrides use the original locale output directory.
 
 | Path                                           | Meaning                                               |
 | ---------------------------------------------- | ----------------------------------------------------- |
 | `sources/cjk/cn/config-cn.json`                 | Built-in source configuration.                        |
-| `sources/cjk/cn/MapleMono-CN-VF.ttf`            | Regular generated variable base.                      |
-| `sources/cjk/cn/MapleMono-CN-Italic-VF.ttf`     | Italic generated variable base.                       |
-| `sources/cjk/cn/variable-cn.sha256`             | Digest of only the regular and italic variable bases. |
-| `sources/cjk/cn/cn-base-variable.zip`           | Regenerated regular/italic variable-base archive.     |
-| `sources/cjk/cn/static/MapleMonoCN-<Style>.ttf` | Named static CJK base instance.                       |
-| `sources/cjk/cn/static-cn.sha256`               | Digest of the static directory contents.              |
-| `sources/cjk/cn/cn-base-static.zip`             | Regenerated static-base archive.                      |
+| `MapleMono-CN-VF.ttf`                           | Regular generated variable base.                     |
+| `MapleMono-CN-Italic-VF.ttf`                    | Italic generated variable base.                      |
+| `variable-cn.sha256`                            | Digest of only the regular and italic variable bases. |
+| `cn-base-variable.zip`                          | Regenerated regular/italic variable-base archive.    |
+| `static/MapleMonoCN-<Style>.ttf`                  | Named static CJK base instance.                      |
+| `static-cn.sha256`                              | Digest of the static directory contents.             |
+| `cn-base-static.zip`                            | Regenerated static-base archive.                     |
 | `sources/cjk/variable-source/`                  | Cached source and Maple feature/metadata font inputs. |
 
 These are generated artifacts. Edit the JSON config or generator, then rebuild; never patch a generated font or archive by hand.

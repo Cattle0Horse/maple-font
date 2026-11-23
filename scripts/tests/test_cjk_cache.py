@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -10,6 +11,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 
 from scripts.cjk.cache import (
     has_valid_cjk_static_cache,
+    has_valid_cjk_variable_cache,
     verify_static_archive,
     verify_variable_archive,
     write_static_hash,
@@ -93,6 +95,14 @@ class CJKStaticCacheTest(unittest.TestCase):
         with ZipFile(archive_path, "w") as archive:
             for path, name in zip(paths, member_names, strict=True):
                 archive.write(path, name)
+
+    def test_fingerprinted_variable_cache_rejects_changed_font_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = replace(self.make_config(Path(tmp)), cache_key="a" * 64)
+            regular, _ = self.write_variable(config)
+            self.assertTrue(has_valid_cjk_variable_cache(config))
+            regular.write_bytes(b"changed")
+            self.assertFalse(has_valid_cjk_variable_cache(config))
 
     def test_static_archive_matches_committed_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

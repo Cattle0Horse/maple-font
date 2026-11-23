@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     import argparse
 
 from scripts.cjk.config import config_from_data
-from scripts.cjk.presets import build_preset_config, get_preset
+from scripts.cjk.presets import build_preset_config, cache_preset, get_preset
 from scripts.config.base import (
     BUILTIN_CJK_LOCALES,
     WIDTH_MAP,
@@ -466,7 +466,7 @@ class BuildConfigResolver:
 
         for preset_id in locale_selection.builtin_enabled_locales():
             preset_spec = get_preset(preset_id)
-            preset_config = build_preset_config(preset_id)
+            preset_config = cache_preset(preset_id, build_preset_config(preset_id))
             entries.append(
                 ResolvedCJKBuildEntry(
                     entry_id=preset_id,

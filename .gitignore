@@ -4,6 +4,8 @@ release
 sources/cjk/**/*.ttf
 sources/cjk/**/*.otf
 sources/cjk/**/*.vfc
+sources/cjk/**/.cache/
+sources/cjk/*/*.sha256
 !sources/cjk/variable-source/MapleMono-CJK-Base-VF.vfc
 !sources/cjk/variable-source/MapleMono-CJK-Base-VF.ttf
 sources/*.glyphs
