@@ -11,7 +11,8 @@ from scripts.cjk.variable import (
 )
 from scripts.config.base import NerdFontBuildConfig
 from scripts.font_ops.fonttools import load_font
-from scripts.font_ops.names import set_font_name, update_font_names
+from scripts.font_ops.metadata import sync_ribbi_style_metadata
+from scripts.font_ops.names import is_ribbi_bold, set_font_name, update_font_names
 from scripts.utils.logging import logger
 
 if TYPE_CHECKING:
@@ -171,13 +172,19 @@ def finalize_static_font_instance(
     subfamily = (f"{name} Italic" if is_italic else name).replace(
         "Regular Italic", "Italic"
     )
+    style_compact = subfamily.replace(" ", "")
+    is_bold = is_ribbi_bold(style_compact)
     if "CFF " in instance:
         if is_italic:
-            update_italic_metadata(instance, config.transform.italic_angle)
+            update_italic_metadata(
+                instance, config.transform.italic_angle, is_bold=is_bold
+            )
         convert_cff_static_to_glyf(instance)
         recalculate_font(instance, config)
 
-    postscript_name = f"{config.naming.postscript_prefix}-{subfamily.replace(' ', '')}"
+    sync_ribbi_style_metadata(instance, is_bold=is_bold, is_italic=is_italic)
+
+    postscript_name = f"{config.naming.postscript_prefix}-{style_compact}"
     update_font_names(
         font=instance,
         font_config=BASE_FONT_NAMING if config.cache_key else font_config,
